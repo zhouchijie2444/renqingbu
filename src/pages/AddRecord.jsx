@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { parseOcrText } from '../utils/parseOcrText'
 
@@ -7,6 +7,7 @@ const EVENT_TYPES = ['红事', '白事', '生日', '升学', '乔迁', '其他']
 
 export default function AddRecord() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [form, setForm] = useState({
     person_name: '',
     relationship: '',
@@ -19,7 +20,7 @@ export default function AddRecord() {
     notes: '',
   })
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState('manual')
+  const [tab, setTab] = useState(searchParams.get('tab') === 'photo' ? 'photo' : 'manual')
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 

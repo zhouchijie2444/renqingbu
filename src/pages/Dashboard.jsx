@@ -29,7 +29,6 @@ export default function Dashboard() {
     const totalReceived = records.filter((r) => r.direction === 'received').reduce((s, r) => s + r.amount, 0)
     const totalPaid = records.filter((r) => r.direction === 'paid').reduce((s, r) => s + r.amount, 0)
 
-    // Group by person
     const grouped = {}
     for (const r of records) {
       if (!grouped[r.person_name]) grouped[r.person_name] = { totalReceived: 0, totalPaid: 0, eventTypes: new Set() }
@@ -53,13 +52,16 @@ export default function Dashboard() {
   if (search) filtered = filtered.filter((s) => s.person_name.includes(search))
   if (filter !== '全部') filtered = filtered.filter((s) => s.eventTypes.includes(filter))
 
+  const handleDelete = (name) => {
+    setSummaries((prev) => prev.filter((x) => x.person_name !== name))
+  }
+
   return (
     <div className="flex flex-col h-screen">
-      {/* Fixed top section */}
+      {/* Fixed top */}
       <div className="shrink-0 p-4 pb-2 bg-gray-50">
         <h1 className="text-2xl font-bold mb-1">人情簿</h1>
 
-        {/* Stats: only 收礼 and 支出 */}
         <div className="grid grid-cols-2 gap-3 mt-3">
           <div className="bg-green-50 rounded-xl p-4">
             <div className="text-xs text-gray-500 mb-1">总收礼</div>
@@ -71,7 +73,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Quick actions */}
         <div className="grid grid-cols-2 gap-3 mt-3">
           <button
             onClick={() => navigate('/add')}
@@ -87,7 +88,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Year filter */}
         <div className="flex gap-2 mt-3 overflow-x-auto">
           {['今年', '去年', '全部'].map((y) => (
             <button
@@ -99,7 +99,6 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Type filter */}
         <div className="flex gap-2 overflow-x-auto pt-2 pb-2">
           {EVENT_TYPES.map((t) => (
             <button
@@ -112,7 +111,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Scrollable records list */}
+      {/* Scrollable list */}
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {loading ? (
           <div className="text-center text-gray-400 py-8">加载中...</div>
@@ -122,85 +121,130 @@ export default function Dashboard() {
             <p>暂无记录</p>
           </div>
         ) : (
-          filtered.map((s) => {
-            const balance = s.totalReceived - s.totalPaid
-            return (
-              <LongPressRow
-                key={s.person_name}
-                personName={s.person_name}
-                totalReceived={s.totalReceived}
-                totalPaid={s.totalPaid}
-                balance={balance}
-                onDelete={() => setSummaries((prev) => prev.filter((x) => x.person_name !== s.person_name))}
-              />
-            )
-          })
+          filtered.map((s) => (
+            <SwipeRow
+              key={s.person_name}
+              personName={s.person_name}
+              totalReceived={s.totalReceived}
+              totalPaid={s.totalPaid}
+              balance={s.totalReceived - s.totalPaid}
+              onDelete={() => handleDelete(s.person_name)}
+              onRename={(newName) => {
+                setSummaries((prev) =>
+                  prev.map((x) => (x.person_name === s.person_name ? { ...x, person_name: newName } : x))
+                )
+              }}
+            />
+          ))
         )}
       </div>
     </div>
   )
 }
 
-function LongPressRow({ personName, totalReceived, totalPaid, balance, onDelete }) {
+function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onRename }) {
   const navigate = useNavigate()
-  const timerRef = useRef(null)
-  const [showDel, setShowDel] = useState(false)
+  const rowRef = useRef(null)
+  const startX = useRef(0)
+  const offsetX = useRef(0)
+  const [swiped, setSwiped] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editName, setEditName] = useState(personName)
 
-  const startPress = () => {
-    timerRef.current = setTimeout(() => {
-      navigator.vibrate?.(50)
-      setShowDel(true)
-    }, 600)
+  const onTouchStart = (e) => {
+    startX.current = e.touches[0].clientX
+    offsetX.current = 0
   }
 
-  const cancelPress = () => {
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+  const onTouchMove = (e) => {
+    const dx = e.touches[0].clientX - startX.current
+    if (dx < -30) {
+      offsetX.current = dx
+      const el = rowRef.current
+      if (el) el.style.transform = `translateX(-80px)`
+      setSwiped(true)
+    } else if (dx > 30 && swiped) {
+      offsetX.current = 0
+      const el = rowRef.current
+      if (el) el.style.transform = `translateX(0)`
+      setSwiped(false)
+    }
   }
 
-  const handleDelete = async () => {
-    setShowDel(false)
-    await supabase.from('records').delete().eq('person_name', personName)
-    onDelete()
+  const onTouchEnd = () => {
+    if (!swiped) {
+      offsetX.current = 0
+      const el = rowRef.current
+      if (el) el.style.transform = `translateX(0)`
+    }
+  }
+
+  const handleRename = async () => {
+    if (editName.trim() && editName !== personName) {
+      await supabase.from('records').update({ person_name: editName.trim() }).eq('person_name', personName)
+      onRename(editName.trim())
+    }
+    setEditing(false)
   }
 
   return (
-    <>
+    <div className="relative overflow-hidden mb-2 rounded-xl">
+      {/* Delete button behind */}
       <button
-        onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={cancelPress}
-        onMouseDown={startPress} onMouseUp={cancelPress} onMouseLeave={cancelPress}
-        onClick={() => navigate(`/person/${encodeURIComponent(personName)}`)}
-        className="w-full bg-white rounded-xl p-4 shadow-sm mb-2 flex items-center justify-between active:bg-gray-50 text-left select-none"
+        onClick={async () => {
+          await supabase.from('records').delete().eq('person_name', personName)
+          onDelete()
+        }}
+        className="absolute right-0 top-0 bottom-0 w-20 bg-red-500 text-white font-medium text-sm flex items-center justify-center rounded-r-xl"
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-lg">
-            {personName.charAt(0)}
-          </div>
-          <span className="text-base font-medium">{personName}</span>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-green-600">收 ¥{totalReceived}</span>
-          <span className="text-orange-600">支 ¥{totalPaid}</span>
-          {balance > 0 && (
-            <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待还 ¥{balance}</span>
-          )}
-        </div>
+        删除
       </button>
 
-      {showDel && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowDel(false)}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative w-full max-w-lg bg-white rounded-t-2xl p-4 pb-safe" onClick={(e) => e.stopPropagation()}>
-            <div className="text-center text-sm text-gray-500 mb-3">{personName}</div>
-            <button onClick={handleDelete} className="w-full py-4 text-base font-medium text-red-500">
-              🗑️ 删除全部记录
-            </button>
-            <button onClick={() => setShowDel(false)} className="w-full py-4 text-base text-gray-400 mt-1">
-              取消
-            </button>
+      {/* Main row */}
+      <div
+        ref={rowRef}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onClick={() => {
+          if (swiped) { setSwiped(false); return }
+          if (!editing) navigate(`/person/${encodeURIComponent(personName)}`)
+        }}
+        className="relative bg-white p-4 shadow-sm transition-transform duration-200 select-none"
+        style={{ transform: 'translateX(0)' }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-lg shrink-0">
+              {personName.charAt(0)}
+            </div>
+            {editing ? (
+              <input
+                type="text" value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={handleRename}
+                autoFocus
+                className="text-base font-medium px-2 py-1 rounded border border-red-300 w-24"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className="text-base font-medium truncate"
+                onClick={(e) => { e.stopPropagation(); setEditing(true); setEditName(personName) }}
+              >
+                {personName}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-sm shrink-0">
+            <span className="text-green-600">收 ¥{totalReceived}</span>
+            <span className="text-orange-600">支 ¥{totalPaid}</span>
+            {balance > 0 && (
+              <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待 ¥{balance}</span>
+            )}
           </div>
         </div>
-      )}
-
-    </>
+      </div>
+    </div>
   )
 }

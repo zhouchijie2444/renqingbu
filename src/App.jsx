@@ -51,7 +51,7 @@ function BottomNav() {
   const location = useLocation()
 
   const tabs = [
-    { to: '/', label: '首页', icon: '📊' },
+    { to: '/', label: '记录', icon: '📊' },
     { to: '/search', label: '搜索', icon: '🔍' },
     { to: '/add', label: '添加', icon: '➕' },
   ]
