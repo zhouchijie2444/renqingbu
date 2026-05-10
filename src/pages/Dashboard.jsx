@@ -236,7 +236,7 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
             )}
           </div>
           <button onClick={toggleExpand} className="text-sm shrink-0 flex items-center gap-1">
-            <span className="text-green-600 font-medium">¥{totalReceived}</span>
+            <span className="text-green-600 font-medium">收 ¥{totalReceived}</span>
             <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>
           </button>
         </div>
