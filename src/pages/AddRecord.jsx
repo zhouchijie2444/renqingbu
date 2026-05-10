@@ -213,7 +213,8 @@ function PhotoOcrTab() {
   const [eventType, setEventType] = useState('红事')
   const [recordDate, setRecordDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
-  const fileInputRef = useRef(null)
+  const cameraRef = useRef(null)
+  const galleryRef = useRef(null)
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
@@ -255,7 +256,7 @@ function PhotoOcrTab() {
 
       const parsed = parseOcrText(funcData)
       setRawText(parsed.rawText)
-      setRecords(parsed.records.map((r) => ({ ...r, relationship: '' })))
+      setRecords(parsed.records.map((r) => ({ ...r, event_desc: '' })))
       if (parsed.recognized.event_type) setEventType(parsed.recognized.event_type)
       if (parsed.recognized.record_date) setRecordDate(parsed.recognized.record_date)
     } catch (err) {
@@ -273,7 +274,7 @@ function PhotoOcrTab() {
   }
 
   const addRow = () => {
-    setRecords((prev) => [...prev, { person_name: '', amount: '', relationship: '', event_type: eventType, record_date: recordDate }])
+    setRecords((prev) => [...prev, { person_name: '', amount: '', event_desc: '' }])
   }
 
   const removeRow = (idx) => {
@@ -293,9 +294,9 @@ function PhotoOcrTab() {
       user_id,
       person_name: r.person_name.trim(),
       amount: parseInt(r.amount, 10),
-      relationship: (r.relationship || '').trim(),
+      relationship: '',
       event_type: eventType,
-      event_desc: '',
+      event_desc: (r.event_desc || '').trim(),
       record_date: recordDate,
       direction: 'received',
       status: 'pending',
@@ -313,17 +314,31 @@ function PhotoOcrTab() {
 
   return (
     <div className="space-y-4">
-      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
+      <input ref={galleryRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
 
       {!preview ? (
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full bg-white rounded-2xl p-4 shadow py-16 border-2 border-dashed border-gray-300 text-gray-400 active:border-red-400 active:text-red-400"
-        >
-          <div className="text-5xl mb-3">📷</div>
-          <p className="text-base">点击拍照或选择照片</p>
-          <p className="text-xs mt-1">支持拍摄纸质本子整页，批量识别</p>
-        </button>
+        <div className="bg-white rounded-2xl p-4 shadow space-y-3">
+          <div className="text-center text-gray-400 py-8">
+            <div className="text-5xl mb-3">📷</div>
+            <p className="text-base">拍照或选择照片</p>
+            <p className="text-xs mt-1">支持拍摄纸质本子整页，批量识别</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => cameraRef.current?.click()}
+              className="py-4 bg-red-600 text-white rounded-xl font-medium text-base active:bg-red-700"
+            >
+              📷 拍照
+            </button>
+            <button
+              onClick={() => galleryRef.current?.click()}
+              className="py-4 bg-white border-2 border-red-400 text-red-600 rounded-xl font-medium text-base active:bg-red-50"
+            >
+              🖼️ 相册
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="bg-white rounded-2xl p-4 shadow space-y-4">
           <img src={preview} alt="预览" className="w-full rounded-xl" />
@@ -380,9 +395,9 @@ function PhotoOcrTab() {
                         className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm min-w-0"
                       />
                       <input
-                        type="text" value={r.relationship}
-                        onChange={(e) => updateRecord(idx, 'relationship', e.target.value)}
-                        placeholder="关系"
+                        type="text" value={r.event_desc}
+                        onChange={(e) => updateRecord(idx, 'event_desc', e.target.value)}
+                        placeholder="事件"
                         className="w-16 px-2 py-2 rounded-lg border border-gray-200 text-sm"
                       />
                       <input
