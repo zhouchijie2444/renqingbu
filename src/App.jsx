@@ -36,7 +36,7 @@ export default function App() {
     <div className="min-h-screen bg-gray-50 pb-20">
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/records" element={<RecordList />} />
+        <Route path="/search" element={<RecordList />} />
         <Route path="/add" element={<AddRecord />} />
         <Route path="/person/:name" element={<PersonDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -52,7 +52,7 @@ function BottomNav() {
 
   const tabs = [
     { to: '/', label: '首页', icon: '📊' },
-    { to: '/records', label: '记录', icon: '📋' },
+    { to: '/search', label: '搜索', icon: '🔍' },
     { to: '/add', label: '添加', icon: '➕' },
   ]
 
