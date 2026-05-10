@@ -104,26 +104,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 pb-safe">
-        <div className="max-w-lg mx-auto flex justify-around py-2">
-          {[
-            ['/', '首页', ''],
-            ['/records', '记录', ''],
-            ['/add', '添加', ''],
-          ].map(([to, label, icon]) => (
-            <button
-              key={to}
-              onClick={() => navigate(to)}
-              className="flex flex-col items-center px-6 py-1 text-xs gap-1 text-red-600"
-            >
-              <span className="text-xl">{icon}</span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
-
       <button
         onClick={async () => { await supabase.auth.signOut() }}
         className="w-full mt-8 py-3 text-gray-400 text-sm active:text-gray-600"
