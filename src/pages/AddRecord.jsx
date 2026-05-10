@@ -136,9 +136,31 @@ function PhotoOcrTab() {
     setProcessing(true)
 
     try {
-      const { data: funcData, error: funcError } = await supabase.functions.invoke('ocr-proxy', { body: { imageUrl: urlData.publicUrl } })
+      // Use raw fetch so we can see the actual error response body
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
+      const res = await fetch(
+        'https://zlrmtbclgugupeccgehx.supabase.co/functions/v1/ocr-proxy',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ imageUrl: urlData.publicUrl }),
+        }
+      )
       setProcessing(false)
-      if (funcError) { alert('识别失败: ' + JSON.stringify(funcError)); return }
+
+      if (!res.ok) {
+        const errBody = await res.text()
+        try {
+          const errJson = JSON.parse(errBody)
+          alert('OCR接口返回错误 (状态码 ' + res.status + '): ' + JSON.stringify(errJson, null, 2))
+        } catch {
+          alert('OCR接口返回错误 (状态码 ' + res.status + '): ' + errBody)
+        }
+        return
+      }
+
+      const funcData = await res.json()
       if (!funcData || funcData.error) { alert('百度返回错误: ' + JSON.stringify(funcData)); return }
       if (!funcData.words_result || funcData.words_result.length === 0) { alert('未识别到文字，请拍清晰些'); return }
 
