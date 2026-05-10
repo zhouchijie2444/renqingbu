@@ -5,5 +5,4 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: '/renqingbu/',
-  build: { outDir: 'docs' },
 })
