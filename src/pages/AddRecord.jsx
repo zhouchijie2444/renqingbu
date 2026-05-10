@@ -194,26 +194,21 @@ export default function AddRecord() {
         </form>
       )}
 
-      {tab === 'photo' && (
-        <PhotoOcrTab
-          onResult={(parsed) => {
-            set('person_name', parsed.person_name || '')
-            set('amount', parsed.amount || '')
-            set('record_date', parsed.record_date || form.record_date)
-            set('event_type', parsed.event_type || '红事')
-            setTab('manual')
-          }}
-        />
-      )}
+      {tab === 'photo' && <PhotoOcrTab />}
     </div>
   )
 }
 
-function PhotoOcrTab({ onResult }) {
+function PhotoOcrTab() {
+  const navigate = useNavigate()
   const [uploading, setUploading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [preview, setPreview] = useState(null)
-  const [ocrText, setOcrText] = useState('')
+  const [rawText, setRawText] = useState('')
+  const [records, setRecords] = useState([])
+  const [eventType, setEventType] = useState('红事')
+  const [recordDate, setRecordDate] = useState(new Date().toISOString().split('T')[0])
+  const [saving, setSaving] = useState(false)
   const fileInputRef = useRef(null)
 
   const handleFile = async (e) => {
@@ -223,7 +218,6 @@ function PhotoOcrTab({ onResult }) {
     setUploading(true)
     setPreview(URL.createObjectURL(file))
 
-    // 上传到 Supabase Storage
     const fileName = `ocr/${Date.now()}-${file.name || 'photo.jpg'}`
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('receipts')
@@ -235,67 +229,183 @@ function PhotoOcrTab({ onResult }) {
       return
     }
 
-    // 获取公开链接
     const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(fileName)
     const imageUrl = urlData.publicUrl
 
     setUploading(false)
     setProcessing(true)
 
-    // 调用 OCR 代理函数
-    const { data: funcData, error: funcError } = await supabase.functions.invoke('ocr-proxy', {
-      body: { imageUrl },
-    })
+    try {
+      const { data: funcData, error: funcError } = await supabase.functions.invoke('ocr-proxy', {
+        body: { imageUrl },
+      })
 
-    setProcessing(false)
+      setProcessing(false)
 
-    if (funcError) {
-      alert('识别失败: ' + funcError.message)
-      return
+      if (funcError) { alert('识别失败: ' + JSON.stringify(funcError)); return }
+      if (!funcData || funcData.error) { alert('百度返回错误: ' + JSON.stringify(funcData)); return }
+      if (!funcData.words_result || funcData.words_result.length === 0) {
+        alert('图片中未识别到文字，请拍清晰些')
+        return
+      }
+
+      const parsed = parseOcrText(funcData)
+      setRawText(parsed.rawText)
+      setRecords(parsed.records.map((r) => ({ ...r, relationship: '' })))
+      if (parsed.recognized.event_type) setEventType(parsed.recognized.event_type)
+      if (parsed.recognized.record_date) setRecordDate(parsed.recognized.record_date)
+    } catch (err) {
+      setProcessing(false)
+      alert('网络错误: ' + (err.message || '未知错误'))
     }
+  }
 
-    const parsed = parseOcrText(funcData)
-    setOcrText(parsed.rawText)
-    onResult(parsed)
+  const updateRecord = (idx, field, value) => {
+    setRecords((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+
+  const addRow = () => {
+    setRecords((prev) => [...prev, { person_name: '', amount: '', relationship: '', event_type: eventType, record_date: recordDate }])
+  }
+
+  const removeRow = (idx) => {
+    setRecords((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const handleBatchSave = async () => {
+    const valid = records.filter((r) => r.person_name.trim() && r.amount)
+    if (valid.length === 0) { alert('没有可保存的记录'); return }
+    if (!confirm(`确认导入 ${valid.length} 条记录？`)) return
+
+    setSaving(true)
+    const rows = valid.map((r) => ({
+      person_name: r.person_name.trim(),
+      amount: parseInt(r.amount, 10),
+      relationship: (r.relationship || '').trim(),
+      event_type: eventType,
+      event_desc: '',
+      record_date: recordDate,
+      direction: 'received',
+      status: 'pending',
+    }))
+
+    const { error } = await supabase.from('records').insert(rows)
+    setSaving(false)
+
+    if (error) {
+      alert('保存失败: ' + error.message)
+    } else {
+      navigate('/records')
+    }
   }
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow space-y-4">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFile}
-        className="hidden"
-      />
+    <div className="space-y-4">
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
 
       {!preview ? (
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="w-full py-16 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 active:border-red-400 active:text-red-400"
+          className="w-full bg-white rounded-2xl p-4 shadow py-16 border-2 border-dashed border-gray-300 text-gray-400 active:border-red-400 active:text-red-400"
         >
           <div className="text-5xl mb-3">📷</div>
           <p className="text-base">点击拍照或选择照片</p>
-          <p className="text-xs mt-1">支持拍摄纸质本子页面</p>
+          <p className="text-xs mt-1">支持拍摄纸质本子整页，批量识别</p>
         </button>
       ) : (
-        <div className="space-y-3">
+        <div className="bg-white rounded-2xl p-4 shadow space-y-4">
           <img src={preview} alt="预览" className="w-full rounded-xl" />
           {uploading && <p className="text-center text-gray-400">上传中...</p>}
-          {processing && <p className="text-center text-blue-500">正在识别文字...</p>}
-          {ocrText && (
-            <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
-              <div className="text-xs text-gray-400 mb-1">识别结果：</div>
-              <pre className="whitespace-pre-wrap font-sans text-base">{ocrText}</pre>
-            </div>
+          {processing && <p className="text-center text-blue-500 text-lg py-4">🔍 正在识别文字...</p>}
+
+          {!processing && rawText && (
+            <>
+              {/* 原始识别文本 */}
+              <details className="bg-gray-50 rounded-xl p-3">
+                <summary className="text-xs text-gray-400">查看原始识别文字</summary>
+                <pre className="whitespace-pre-wrap font-sans text-sm mt-2 text-gray-600">{rawText}</pre>
+              </details>
+
+              {/* 公共信息 */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">事件类型</label>
+                  <select
+                    value={eventType}
+                    onChange={(e) => setEventType(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                  >
+                    {['红事', '白事', '生日', '升学', '乔迁', '其他'].map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">日期</label>
+                  <input
+                    type="date" value={recordDate}
+                    onChange={(e) => setRecordDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* 识别出的人员列表 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-gray-700">识别到 {records.length} 条记录</h3>
+                  <button type="button" onClick={addRow} className="text-sm text-red-500">+ 添加一行</button>
+                </div>
+
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {records.map((r, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-xl p-3">
+                      <span className="text-xs text-gray-400 w-5">{idx + 1}</span>
+                      <input
+                        type="text" value={r.person_name}
+                        onChange={(e) => updateRecord(idx, 'person_name', e.target.value)}
+                        placeholder="姓名"
+                        className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm min-w-0"
+                      />
+                      <input
+                        type="text" value={r.relationship}
+                        onChange={(e) => updateRecord(idx, 'relationship', e.target.value)}
+                        placeholder="关系"
+                        className="w-16 px-2 py-2 rounded-lg border border-gray-200 text-sm"
+                      />
+                      <input
+                        type="number" value={r.amount}
+                        onChange={(e) => updateRecord(idx, 'amount', e.target.value)}
+                        placeholder="金额"
+                        className="w-20 px-2 py-2 rounded-lg border border-gray-200 text-sm"
+                      />
+                      <button onClick={() => removeRow(idx)} className="text-gray-300 text-lg shrink-0">✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 操作按钮 */}
+              <button
+                onClick={handleBatchSave}
+                disabled={saving || records.filter((r) => r.person_name.trim() && r.amount).length === 0}
+                className="w-full py-3 bg-red-600 text-white text-base font-medium rounded-xl hover:bg-red-700 disabled:opacity-50"
+              >
+                {saving ? '保存中...' : `批量导入 (${records.filter((r) => r.person_name.trim() && r.amount).length} 条)`}
+              </button>
+
+              <button
+                onClick={() => { setPreview(null); setRawText(''); setRecords([]) }}
+                className="w-full py-2 text-sm text-gray-400"
+              >
+                重新拍摄
+              </button>
+            </>
           )}
-          <button
-            onClick={() => { setPreview(null); setOcrText('') }}
-            className="w-full py-2 text-sm text-gray-400"
-          >
-            重新拍摄
-          </button>
         </div>
       )}
     </div>
