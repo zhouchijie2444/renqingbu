@@ -146,25 +146,23 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
   const navigate = useNavigate()
   const rowRef = useRef(null)
   const startX = useRef(0)
-  const offsetX = useRef(0)
   const [swiped, setSwiped] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(personName)
+  const [expanded, setExpanded] = useState(false)
+  const [records, setRecords] = useState([])
 
   const onTouchStart = (e) => {
     startX.current = e.touches[0].clientX
-    offsetX.current = 0
   }
 
   const onTouchMove = (e) => {
     const dx = e.touches[0].clientX - startX.current
     if (dx < -30) {
-      offsetX.current = dx
       const el = rowRef.current
       if (el) el.style.transform = `translateX(-80px)`
       setSwiped(true)
     } else if (dx > 30 && swiped) {
-      offsetX.current = 0
       const el = rowRef.current
       if (el) el.style.transform = `translateX(0)`
       setSwiped(false)
@@ -173,7 +171,6 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
 
   const onTouchEnd = () => {
     if (!swiped) {
-      offsetX.current = 0
       const el = rowRef.current
       if (el) el.style.transform = `translateX(0)`
     }
@@ -187,9 +184,24 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
     setEditing(false)
   }
 
+  const toggleExpand = async (e) => {
+    e.stopPropagation()
+    if (!expanded) {
+      const { data } = await supabase.from('records').select('*').eq('person_name', personName).order('record_date', { ascending: false })
+      setRecords(data || [])
+    }
+    setExpanded(!expanded)
+  }
+
+  const updateAmount = async (id, newAmount) => {
+    const val = parseInt(newAmount, 10)
+    if (!val || val <= 0) return
+    await supabase.from('records').update({ amount: val }).eq('id', id)
+    setRecords((prev) => prev.map((r) => r.id === id ? { ...r, amount: val } : r))
+  }
+
   return (
     <div className="relative overflow-hidden mb-2 rounded-xl">
-      {/* Delete button behind */}
       <button
         onClick={async () => {
           await supabase.from('records').delete().eq('person_name', personName)
@@ -200,46 +212,61 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
         删除
       </button>
 
-      {/* Main row */}
       <div
         ref={rowRef}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onClick={() => {
-          if (swiped) { setSwiped(false); return }
-          if (!editing) navigate(`/person/${encodeURIComponent(personName)}`)
-        }}
         className="relative bg-white p-4 shadow-sm transition-transform duration-200 select-none"
         style={{ transform: 'translateX(0)' }}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" onClick={() => { if (swiped) { setSwiped(false); return } }}>
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-lg shrink-0">
               {personName.charAt(0)}
             </div>
             {editing ? (
-              <input
-                type="text" value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onBlur={handleRename}
-                autoFocus
-                className="text-base font-medium px-2 py-1 rounded border border-red-300 w-24"
-                onClick={(e) => e.stopPropagation()}
-              />
+              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} onBlur={handleRename} autoFocus
+                className="text-base font-medium px-2 py-1 rounded border border-red-300 w-24" onClick={(e) => e.stopPropagation()} />
             ) : (
-              <span
-                className="text-base font-medium truncate"
-                onClick={(e) => { e.stopPropagation(); setEditing(true); setEditName(personName) }}
-              >
+              <span className="text-base font-medium truncate"
+                onClick={(e) => { e.stopPropagation(); setEditing(true); setEditName(personName) }}>
                 {personName}
               </span>
             )}
           </div>
-          <div className="text-sm shrink-0">
+          <button onClick={toggleExpand} className="text-sm shrink-0 flex items-center gap-1">
             <span className="text-green-600 font-medium">¥{totalReceived}</span>
-          </div>
+            <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>
+          </button>
         </div>
+
+        {expanded && records.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+            {records.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 text-sm">
+                <span className="text-gray-400 w-20 shrink-0">{r.record_date}</span>
+                <span className="text-gray-500 w-10 shrink-0">{r.event_type}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded ${r.direction === 'received' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'} shrink-0`}>
+                  {r.direction === 'received' ? '收' : '支'}
+                </span>
+                <input
+                  type="number" defaultValue={r.amount}
+                  onBlur={(e) => updateAmount(r.id, e.target.value)}
+                  className="flex-1 px-2 py-1 rounded border border-gray-200 text-right text-sm min-w-0"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span className="text-gray-400 shrink-0">元</span>
+              </div>
+            ))}
+            <button
+              onClick={(e) => { e.stopPropagation(); navigate(`/person/${encodeURIComponent(personName)}`) }}
+              className="w-full text-center text-xs text-red-400 py-1"
+            >
+              查看更多 →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
