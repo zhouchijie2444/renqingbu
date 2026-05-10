@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
@@ -109,29 +109,78 @@ export default function RecordList() {
           {filtered.map((s) => {
             const balance = s.totalReceived - s.totalPaid
             return (
-              <button
+              <LongPressRow
                 key={s.person_name}
-                onClick={() => navigate(`/person/${encodeURIComponent(s.person_name)}`)}
-                className="w-full bg-white rounded-xl p-4 shadow-sm mb-2 flex items-center justify-between active:bg-gray-50 text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-lg">
-                    {s.person_name.charAt(0)}
-                  </div>
-                  <span className="text-base font-medium">{s.person_name}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-green-600">收 ¥{s.totalReceived}</span>
-                  <span className="text-orange-600">还 ¥{s.totalPaid}</span>
-                  {balance > 0 && (
-                    <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待还 ¥{balance}</span>
-                  )}
-                </div>
-              </button>
+                personName={s.person_name}
+                totalReceived={s.totalReceived}
+                totalPaid={s.totalPaid}
+                balance={balance}
+                onDelete={() => {
+                  setSummaries((prev) => prev.filter((x) => x.person_name !== s.person_name))
+                }}
+              />
             )
           })}
         </div>
       )}
     </div>
+  )
+}
+
+function LongPressRow({ personName, totalReceived, totalPaid, balance, onDelete }) {
+  const navigate = useNavigate()
+  const timerRef = useRef(null)
+
+  const startPress = () => {
+    timerRef.current = setTimeout(async () => {
+      if (confirm(`确定删除 ${personName} 的所有记录？`)) {
+        const { error } = await supabase
+          .from('records')
+          .delete()
+          .eq('person_name', personName)
+        if (error) {
+          alert('删除失败: ' + error.message)
+        } else {
+          onDelete()
+        }
+      }
+    }, 800)
+  }
+
+  const cancelPress = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  return (
+    <button
+      onTouchStart={startPress}
+      onTouchEnd={cancelPress}
+      onTouchMove={cancelPress}
+      onMouseDown={startPress}
+      onMouseUp={cancelPress}
+      onMouseLeave={cancelPress}
+      onClick={() => navigate(`/person/${encodeURIComponent(personName)}`)}
+      className="w-full bg-white rounded-xl p-4 shadow-sm mb-2 flex items-center justify-between active:bg-gray-50 text-left select-none"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-lg">
+          {personName.charAt(0)}
+        </div>
+        <div>
+          <span className="text-base font-medium">{personName}</span>
+          <div className="text-xs text-gray-400">长按删除</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-sm">
+        <span className="text-green-600">收 ¥{totalReceived}</span>
+        <span className="text-orange-600">还 ¥{totalPaid}</span>
+        {balance > 0 && (
+          <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待还 ¥{balance}</span>
+        )}
+      </div>
+    </button>
   )
 }
