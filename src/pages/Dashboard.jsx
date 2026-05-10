@@ -151,6 +151,9 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
   const [editName, setEditName] = useState(personName)
   const [expanded, setExpanded] = useState(false)
   const [records, setRecords] = useState([])
+  const [showReturn, setShowReturn] = useState(false)
+  const [returnAmount, setReturnAmount] = useState('')
+  const [savingReturn, setSavingReturn] = useState(false)
 
   const onTouchStart = (e) => {
     startX.current = e.touches[0].clientX
@@ -198,6 +201,38 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
     if (!val || val <= 0) return
     await supabase.from('records').update({ amount: val }).eq('id', id)
     setRecords((prev) => prev.map((r) => r.id === id ? { ...r, amount: val } : r))
+  }
+
+  const handleReturn = async () => {
+    const val = parseInt(returnAmount, 10)
+    if (!val || val <= 0) return
+    setSavingReturn(true)
+    const { data: userData } = await supabase.auth.getUser()
+    const user_id = userData?.user?.id
+
+    const { data: pending } = await supabase.from('records')
+      .select('id').eq('person_name', personName).eq('direction', 'received')
+      .eq('status', 'pending').order('record_date', { ascending: true }).limit(1)
+
+    const linked_id = pending?.[0]?.id || null
+
+    await supabase.from('records').insert({
+      user_id, person_name: personName,
+      amount: val, event_type: '其他',
+      record_date: new Date().toISOString().split('T')[0],
+      direction: 'paid', linked_record_id: linked_id,
+      status: 'none',
+    })
+
+    if (linked_id) {
+      await supabase.from('records').update({ status: 'settled' }).eq('id', linked_id)
+    }
+
+    setSavingReturn(false)
+    setReturnAmount('')
+    setShowReturn(false)
+    const { data } = await supabase.from('records').select('*').eq('person_name', personName).order('record_date', { ascending: false })
+    setRecords(data || [])
   }
 
   return (
@@ -249,7 +284,7 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
                 <span className="text-gray-400 w-20 shrink-0">{r.record_date}</span>
                 <span className="text-gray-500 w-10 shrink-0">{r.event_type}</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded ${r.direction === 'received' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'} shrink-0`}>
-                  {r.direction === 'received' ? '收' : '支'}
+                  {r.direction === 'received' ? '收' : '还'}
                 </span>
                 <input
                   type="number" defaultValue={r.amount}
@@ -260,6 +295,32 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
                 <span className="text-gray-400 shrink-0">元</span>
               </div>
             ))}
+
+            {!showReturn ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowReturn(true) }}
+                className="w-full py-2 text-sm text-orange-500 border border-dashed border-orange-300 rounded-lg"
+              >
+                + 添加还礼
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 bg-orange-50 rounded-lg p-2" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="number" value={returnAmount} onChange={(e) => setReturnAmount(e.target.value)}
+                  placeholder="还礼金额" autoFocus
+                  className="flex-1 px-3 py-2 rounded-lg border border-orange-200 text-sm"
+                />
+                <button onClick={handleReturn} disabled={savingReturn || !returnAmount}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                  {savingReturn ? '...' : '确定'}
+                </button>
+                <button onClick={() => { setShowReturn(false); setReturnAmount('') }}
+                  className="px-2 py-2 text-gray-400 text-sm">
+                  取消
+                </button>
+              </div>
+            )}
+
             <button
               onClick={(e) => { e.stopPropagation(); navigate(`/person/${encodeURIComponent(personName)}`) }}
               className="w-full text-center text-xs text-red-400 py-1"
