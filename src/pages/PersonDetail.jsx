@@ -30,7 +30,11 @@ export default function PersonDetail() {
   const handleDelete = async (id) => {
     if (!confirm('确定删除这条记录？')) return
     const { error } = await supabase.from('records').delete().eq('id', id)
-    if (!error) setRecords((prev) => prev.filter((r) => r.id !== id))
+    if (error) {
+      alert('删除失败: ' + error.message)
+    } else {
+      setRecords((prev) => prev.filter((r) => r.id !== id))
+    }
   }
 
   const totalReceived = records.filter((r) => r.direction === 'received').reduce((s, r) => s + r.amount, 0)

@@ -28,7 +28,11 @@ export default function AddRecord() {
     if (!form.person_name.trim() || !form.amount) return
     setSaving(true)
 
+    const { data: userData } = await supabase.auth.getUser()
+    const user_id = userData?.user?.id
+
     const recordData = {
+      user_id,
       person_name: form.person_name.trim(),
       relationship: form.relationship.trim(),
       event_type: form.event_type,
@@ -282,7 +286,11 @@ function PhotoOcrTab() {
     if (!confirm(`确认导入 ${valid.length} 条记录？`)) return
 
     setSaving(true)
+    const { data: userData } = await supabase.auth.getUser()
+    const user_id = userData?.user?.id
+
     const rows = valid.map((r) => ({
+      user_id,
       person_name: r.person_name.trim(),
       amount: parseInt(r.amount, 10),
       relationship: (r.relationship || '').trim(),
