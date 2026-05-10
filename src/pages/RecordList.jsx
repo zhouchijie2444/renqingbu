@@ -78,12 +78,9 @@ export default function RecordList() {
                   </div>
                   <span className="text-base font-medium">{s.person_name}</span>
                 </div>
-                <div className="flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-2 text-sm">
                   <span className="text-green-600">收 ¥{s.totalReceived}</span>
-                  <span className="text-orange-600">支 ¥{s.totalPaid}</span>
-                  {balance > 0 && (
-                    <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待还 ¥{balance}</span>
-                  )}
+                  {s.totalPaid > 0 && <span className="text-orange-500">还 ¥{s.totalPaid}</span>}
                 </div>
               </button>
             )
