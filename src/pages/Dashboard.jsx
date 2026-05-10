@@ -236,12 +236,8 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 text-sm shrink-0">
-            <span className="text-green-600">收 ¥{totalReceived}</span>
-            <span className="text-orange-600">支 ¥{totalPaid}</span>
-            {balance > 0 && (
-              <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待 ¥{balance}</span>
-            )}
+          <div className="text-sm shrink-0">
+            <span className="text-green-600 font-medium">¥{totalReceived}</span>
           </div>
         </div>
       </div>
