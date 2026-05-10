@@ -60,7 +60,7 @@ export default function PersonDetail() {
         <h1 className="text-2xl font-bold">{personName}</h1>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-green-50 rounded-xl p-3 text-center">
           <div className="text-xs text-green-600 mb-1">总收礼</div>
           <div className="text-lg font-bold text-green-700">¥{totalReceived}</div>
@@ -76,6 +76,9 @@ export default function PersonDetail() {
           </div>
         </div>
       </div>
+
+      {/* Quick return form */}
+      <AddReturnForm personName={personName} onAdded={() => fetchRecords()} />
 
       {loading ? (
         <div className="text-center text-gray-400 py-8">加载中...</div>
@@ -145,6 +148,66 @@ export default function PersonDetail() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function AddReturnForm({ personName, onAdded }) {
+  const [amount, setAmount] = useState('')
+  const [show, setShow] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const handleAdd = async () => {
+    if (!amount) return
+    setSaving(true)
+    const { data: userData } = await supabase.auth.getUser()
+    const user_id = userData?.user?.id
+
+    // Find pending received records to auto-link
+    const { data: pending } = await supabase.from('records')
+      .select('id').eq('person_name', personName).eq('direction', 'received')
+      .eq('status', 'pending').order('record_date', { ascending: true }).limit(1)
+
+    const linked_id = pending?.[0]?.id || null
+
+    await supabase.from('records').insert({
+      user_id, person_name: personName,
+      amount: parseInt(amount, 10),
+      event_type: '其他', record_date: new Date().toISOString().split('T')[0],
+      direction: 'paid', linked_record_id: linked_id,
+      status: 'none',
+    })
+
+    // Mark linked record as settled
+    if (linked_id) {
+      await supabase.from('records').update({ status: 'settled' }).eq('id', linked_id)
+    }
+
+    setSaving(false)
+    setAmount('')
+    setShow(false)
+    onAdded()
+  }
+
+  if (!show) {
+    return (
+      <button onClick={() => setShow(true)} className="w-full py-3 mb-4 bg-orange-50 border border-orange-200 text-orange-600 rounded-xl text-sm font-medium">
+        + 添加还礼
+      </button>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-xl p-4 shadow-sm mb-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+          placeholder="还礼金额" className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
+        <button onClick={handleAdd} disabled={saving || !amount}
+          className="px-6 py-3 bg-orange-500 text-white rounded-xl text-sm font-medium disabled:opacity-50">
+          确定
+        </button>
+        <button onClick={() => setShow(false)} className="px-4 py-3 text-gray-400 text-sm">取消</button>
+      </div>
     </div>
   )
 }
