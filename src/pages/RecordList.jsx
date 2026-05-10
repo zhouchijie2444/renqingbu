@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
 export default function RecordList() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [summaries, setSummaries] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const search = searchParams.get('q') || ''
+
+  const setSearch = (val) => {
+    if (val) setSearchParams({ q: val }, { replace: true })
+    else setSearchParams({}, { replace: true })
+  }
 
   useEffect(() => { fetchSummaries() }, [])
 
@@ -42,7 +48,6 @@ export default function RecordList() {
         <input
           type="text" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="输入姓名搜索..."
-          autoFocus
           className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 text-base bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
         />
         {search && (
