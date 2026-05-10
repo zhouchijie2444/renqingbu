@@ -12,6 +12,7 @@ export default function AddRecord() {
     person_name: '',
     amount: '',
     event_type: '红事',
+    record_date: new Date().toISOString().split('T')[0],
   })
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState(searchParams.get('tab') === 'photo' ? 'photo' : 'manual')
@@ -31,7 +32,7 @@ export default function AddRecord() {
       person_name: form.person_name.trim(),
       amount: parseInt(form.amount, 10),
       event_type: form.event_type,
-      record_date: new Date().toISOString().split('T')[0],
+      record_date: form.record_date,
       direction: 'received',
       status: 'pending',
     })
@@ -72,6 +73,12 @@ export default function AddRecord() {
             <label className="block text-sm font-medium text-gray-700 mb-1">金额 *</label>
             <input type="number" value={form.amount} onChange={(e) => set('amount', e.target.value)}
               required placeholder="500" min="1"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-red-400" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">日期</label>
+            <input type="date" value={form.record_date} onChange={(e) => set('record_date', e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-red-400" />
           </div>
 
