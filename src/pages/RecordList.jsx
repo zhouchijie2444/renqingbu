@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
@@ -7,12 +7,8 @@ export default function RecordList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [summaries, setSummaries] = useState([])
   const [loading, setLoading] = useState(true)
-  const search = searchParams.get('q') || ''
-
-  const setSearch = (val) => {
-    if (val) setSearchParams({ q: val }, { replace: true })
-    else setSearchParams({}, { replace: true })
-  }
+  const [search, setSearch] = useState(searchParams.get('q') || '')
+  const inputRef = useRef(null)
 
   useEffect(() => { fetchSummaries() }, [])
 
@@ -39,6 +35,13 @@ export default function RecordList() {
     ? summaries.filter((s) => s.person_name.includes(search.trim()))
     : []
 
+  const handleSearch = (val) => {
+    setSearch(val)
+    // Sync to URL only for persistence across navigation, not for every keystroke
+    if (val) setSearchParams({ q: val }, { replace: true })
+    else setSearchParams({}, { replace: true })
+  }
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">搜索</h1>
@@ -46,12 +49,13 @@ export default function RecordList() {
       <div className="relative mb-4">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
         <input
-          type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          ref={inputRef}
+          type="text" value={search} onChange={(e) => handleSearch(e.target.value)}
           placeholder="输入姓名搜索..."
           className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 text-base bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
         />
         {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 text-lg">✕</button>
+          <button onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 text-lg">✕</button>
         )}
       </div>
 
@@ -70,7 +74,6 @@ export default function RecordList() {
         <div>
           <p className="text-sm text-gray-400 mb-3">找到 {filtered.length} 人</p>
           {filtered.map((s) => {
-            const balance = s.totalReceived - s.totalPaid
             return (
               <button
                 key={s.person_name}
