@@ -46,7 +46,7 @@ export default function AddRecord() {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 pb-24">
       <h1 className="text-2xl font-bold mb-4">添加记录</h1>
 
       <div className="flex bg-gray-100 rounded-xl p-1 mb-6">

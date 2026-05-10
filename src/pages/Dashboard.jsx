@@ -236,13 +236,8 @@ function SwipeRow({ personName, totalReceived, totalPaid, balance, onDelete, onR
             )}
           </div>
           <button onClick={toggleExpand} className="text-sm shrink-0 flex items-center gap-1">
-            <span className={balance > 0 ? 'text-red-600' : 'text-green-600'}>收 ¥{totalReceived}</span>
-            {totalPaid > 0 && <span className="text-orange-500 text-xs">还 ¥{totalPaid}</span>}
-            {balance > 0 ? (
-              <span className="bg-red-100 text-red-500 text-xs px-1.5 py-0.5 rounded">待 ¥{balance}</span>
-            ) : (
-              <span className="text-green-500 text-xs">✓</span>
-            )}
+            <span className="text-green-600">收 ¥{totalReceived}</span>
+            {totalPaid > 0 && <span className="text-orange-500">还 ¥{totalPaid}</span>}
             <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>
           </button>
         </div>
