@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { parseOcrText } from '../utils/parseOcrText'
 
 const EVENT_TYPES = ['红事', '白事', '生日', '升学', '乔迁', '其他']
 
@@ -194,10 +195,107 @@ export default function AddRecord() {
       )}
 
       {tab === 'photo' && (
-        <div className="bg-white rounded-2xl p-8 shadow text-center text-gray-400">
-          <div className="text-5xl mb-4">📷</div>
-          <p>拍照识别功能即将上线</p>
-          <p className="text-xs mt-2">请先配置百度OCR接口</p>
+        <PhotoOcrTab
+          onResult={(parsed) => {
+            set('person_name', parsed.person_name || '')
+            set('amount', parsed.amount || '')
+            set('record_date', parsed.record_date || form.record_date)
+            set('event_type', parsed.event_type || '红事')
+            setTab('manual')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function PhotoOcrTab({ onResult }) {
+  const [uploading, setUploading] = useState(false)
+  const [processing, setProcessing] = useState(false)
+  const [preview, setPreview] = useState(null)
+  const [ocrText, setOcrText] = useState('')
+  const fileInputRef = useRef(null)
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    setPreview(URL.createObjectURL(file))
+
+    // 上传到 Supabase Storage
+    const fileName = `ocr/${Date.now()}-${file.name || 'photo.jpg'}`
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, file)
+
+    if (uploadError) {
+      alert('上传失败: ' + uploadError.message)
+      setUploading(false)
+      return
+    }
+
+    // 获取公开链接
+    const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(fileName)
+    const imageUrl = urlData.publicUrl
+
+    setUploading(false)
+    setProcessing(true)
+
+    // 调用 OCR 代理函数
+    const { data: funcData, error: funcError } = await supabase.functions.invoke('ocr-proxy', {
+      body: { imageUrl },
+    })
+
+    setProcessing(false)
+
+    if (funcError) {
+      alert('识别失败: ' + funcError.message)
+      return
+    }
+
+    const parsed = parseOcrText(funcData)
+    setOcrText(parsed.rawText)
+    onResult(parsed)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow space-y-4">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFile}
+        className="hidden"
+      />
+
+      {!preview ? (
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full py-16 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 active:border-red-400 active:text-red-400"
+        >
+          <div className="text-5xl mb-3">📷</div>
+          <p className="text-base">点击拍照或选择照片</p>
+          <p className="text-xs mt-1">支持拍摄纸质本子页面</p>
+        </button>
+      ) : (
+        <div className="space-y-3">
+          <img src={preview} alt="预览" className="w-full rounded-xl" />
+          {uploading && <p className="text-center text-gray-400">上传中...</p>}
+          {processing && <p className="text-center text-blue-500">正在识别文字...</p>}
+          {ocrText && (
+            <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
+              <div className="text-xs text-gray-400 mb-1">识别结果：</div>
+              <pre className="whitespace-pre-wrap font-sans text-base">{ocrText}</pre>
+            </div>
+          )}
+          <button
+            onClick={() => { setPreview(null); setOcrText('') }}
+            className="w-full py-2 text-sm text-gray-400"
+          >
+            重新拍摄
+          </button>
         </div>
       )}
     </div>
