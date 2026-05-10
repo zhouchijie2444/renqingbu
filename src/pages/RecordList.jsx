@@ -130,21 +130,13 @@ export default function RecordList() {
 function LongPressRow({ personName, totalReceived, totalPaid, balance, onDelete }) {
   const navigate = useNavigate()
   const timerRef = useRef(null)
+  const [showMenu, setShowMenu] = useState(false)
 
   const startPress = () => {
-    timerRef.current = setTimeout(async () => {
-      if (confirm(`确定删除 ${personName} 的所有记录？`)) {
-        const { error } = await supabase
-          .from('records')
-          .delete()
-          .eq('person_name', personName)
-        if (error) {
-          alert('删除失败: ' + error.message)
-        } else {
-          onDelete()
-        }
-      }
-    }, 800)
+    timerRef.current = setTimeout(() => {
+      navigator.vibrate?.(50)
+      setShowMenu(true)
+    }, 600)
   }
 
   const cancelPress = () => {
@@ -154,33 +146,82 @@ function LongPressRow({ personName, totalReceived, totalPaid, balance, onDelete 
     }
   }
 
+  const handleEdit = () => {
+    setShowMenu(false)
+    navigate(`/person/${encodeURIComponent(personName)}`)
+  }
+
+  const handleDelete = async () => {
+    setShowMenu(false)
+    const { error } = await supabase
+      .from('records')
+      .delete()
+      .eq('person_name', personName)
+    if (error) {
+      alert('删除失败: ' + error.message)
+    } else {
+      onDelete()
+    }
+  }
+
   return (
-    <button
-      onTouchStart={startPress}
-      onTouchEnd={cancelPress}
-      onTouchMove={cancelPress}
-      onMouseDown={startPress}
-      onMouseUp={cancelPress}
-      onMouseLeave={cancelPress}
-      onClick={() => navigate(`/person/${encodeURIComponent(personName)}`)}
-      className="w-full bg-white rounded-xl p-4 shadow-sm mb-2 flex items-center justify-between active:bg-gray-50 text-left select-none"
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-lg">
-          {personName.charAt(0)}
+    <>
+      <button
+        onTouchStart={startPress}
+        onTouchEnd={cancelPress}
+        onTouchMove={cancelPress}
+        onMouseDown={startPress}
+        onMouseUp={cancelPress}
+        onMouseLeave={cancelPress}
+        onClick={() => navigate(`/person/${encodeURIComponent(personName)}`)}
+        className={`w-full bg-white rounded-xl p-4 shadow-sm mb-2 flex items-center justify-between active:bg-gray-50 text-left select-none ${showMenu ? 'ring-2 ring-red-400' : ''}`}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-lg">
+            {personName.charAt(0)}
+          </div>
+          <div>
+            <span className="text-base font-medium">{personName}</span>
+            <div className="text-xs text-gray-400">长按操作</div>
+          </div>
         </div>
-        <div>
-          <span className="text-base font-medium">{personName}</span>
-          <div className="text-xs text-gray-400">长按删除</div>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-green-600">收 ¥{totalReceived}</span>
+          <span className="text-orange-600">还 ¥{totalPaid}</span>
+          {balance > 0 && (
+            <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待还 ¥{balance}</span>
+          )}
         </div>
-      </div>
-      <div className="flex items-center gap-3 text-sm">
-        <span className="text-green-600">收 ¥{totalReceived}</span>
-        <span className="text-orange-600">还 ¥{totalPaid}</span>
-        {balance > 0 && (
-          <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">待还 ¥{balance}</span>
-        )}
-      </div>
-    </button>
+      </button>
+
+      {showMenu && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowMenu(false)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative w-full max-w-lg bg-white rounded-t-2xl p-4 pb-safe animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center text-sm text-gray-500 mb-3">{personName}</div>
+            <button
+              onClick={handleEdit}
+              className="w-full py-4 text-base font-medium text-gray-900 border-b border-gray-100"
+            >
+              ✏️ 修改记录
+            </button>
+            <button
+              onClick={handleDelete}
+              className="w-full py-4 text-base font-medium text-red-500 border-b border-gray-100"
+            >
+              🗑️ 删除全部
+            </button>
+            <button
+              onClick={() => setShowMenu(false)}
+              className="w-full py-4 text-base text-gray-400 mt-1"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } } .animate-slide-up { animation: slide-up 0.2s ease-out; }`}</style>
+    </>
   )
 }
